@@ -16,14 +16,21 @@ environment:
     # - BUILD_TYPE: Debug
 
 install:
-  # initialize all submodules
-  - git submodule update --init --recursive
   # Linux: install multilib compilers
-  - sh: sudo apt-get -qq update
-  - sh: sudo apt-get -qq -y install g++-multilib gcc-multilib
-  - sh: pip install conan==1.60.0
+  - sh: |
+      sudo apt-get -qq update
+      # GCC 11 toolchain *and* its 32‑bit runtimes
+      sudo apt-get -qq -y install \
+           gcc-11 g++-11 \
+           gcc-11-multilib g++-11-multilib \
+           lib32gcc-11-dev lib32stdc++6
+      echo "g++: $(g++ --version | head -n1)"
+
+  - sh: pip install "conan==1.66.0"
   - sh: source ~/.profile
   - sh: "echo g++ version: $(g++ --version | cut -d$'\n' -f1)"
+  # initialize all submodules
+  - git submodule update --init --recursive
   # set CMake platform arg on MSVC
   - ps: |
       if ($isWindows) {
@@ -33,9 +40,14 @@ install:
       }
 
 build_script:
-  - cmd: mkdir build
-  - ps: cmake -Wno-dev -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" @CMAKE_ARGS -S . -B build
-  - ps: cmake --build build --config $env:BUILD_TYPE
+  - sh: |
+      mkdir -p build
+      cmake -Wno-dev \
+            -S . -B build \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_C_FLAGS=-m32 \
+            -DCMAKE_CXX_FLAGS=-m32
+      cmake --build build --config ${BUILD_TYPE}
 
 artifacts:
   - path: 'build/plugins/**/*'
